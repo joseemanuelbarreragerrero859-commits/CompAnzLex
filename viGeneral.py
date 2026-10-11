@@ -181,7 +181,6 @@ class InterfazCompilador:
                 messagebox.showerror("Error", str(e))
 
         tk.Button(self.main_frame, text="APLICAR", command=accion_aplicar, width=15).grid(row=3, column=0, columnspan=2, pady=20)
-
     def mostrar_vista_convertir_afd(self):
         self.limpiar_frame()
         tk.Label(self.main_frame, text="CONVERTIR AFN A AFD", font=("Arial", 12, "bold")).grid(row=0, column=0, columnspan=4, pady=(0, 10), sticky="w")
@@ -193,37 +192,47 @@ class InterfazCompilador:
         combo_afn = ttk.Combobox(self.main_frame, values=opciones_afn, state="readonly", width=15)
         combo_afn.grid(row=1, column=1, padx=10, pady=10)
         
-        # Campo 2: Id del AFD resultante (Nuevo campo agregado según referencia)
+        # Campo 2: Id del AFD resultante 
         tk.Label(self.main_frame, text="Id del AFD:").grid(row=1, column=2, pady=10, sticky="e")
         entrada_id_afd = tk.Entry(self.main_frame, width=10)
         entrada_id_afd.grid(row=1, column=3, padx=10, pady=10)
         
-        # Frame para la tabla de transiciones
+        # Frame para contener los botones
+        frame_botones = tk.Frame(self.main_frame)
+        frame_botones.grid(row=2, column=0, columnspan=4, pady=10)
+
+        # Botón 2: El de guardar, que iniciará desactivado hasta que haya un AFD generado
+        self.afd_temp_para_guardar = None # Variable auxiliar
+        self.id_afd_temp = ""
+        btn_guardar = tk.Button(frame_botones, text="Guardar en .txt", width=15, state=tk.DISABLED)
+
+        # Frame para la tabla
         frame_tabla = tk.Frame(self.main_frame)
         frame_tabla.grid(row=3, column=0, columnspan=4, pady=10)
 
-        def accion_convertir_y_guardar():
-            # Limpiar tabla previa si existe
+        # -- FUNCIONES DE LOS BOTONES --
+        def accion_convertir():
+            # Limpiar tabla si existe
             for widget in frame_tabla.winfo_children():
                 widget.destroy()
                 
             id_sel = combo_afn.get()
-            id_afd = entrada_id_afd.get()
+            self.id_afd_temp = entrada_id_afd.get()
             
             if not id_sel:
                 messagebox.showerror("Error", "Selecciona un AFN a convertir.")
                 return
-            if not id_afd:
+            if not self.id_afd_temp:
                 messagebox.showerror("Error", "Ingresa un Id para el nuevo AFD.")
                 return
                 
             afn_obj = afns_en_memoria[id_sel]
             
             try:
-                # --- 1. LÓGICA DE CONVERSIÓN ---
+                # --- LÓGICA DE CONVERSIÓN ---
                 afd_generado = afn_obj.Convertir_a_AFD()
                 
-                # --- 2. DIBUJAR LA TABLA ---
+                # --- DIBUJAR LA TABLA ---
                 alfabeto_lista = sorted(list(afd_generado.Alfabeto))
                 columnas = ["Estado"] + alfabeto_lista + ["Token"]
                 
@@ -250,26 +259,38 @@ class InterfazCompilador:
                 tabla.configure(yscrollcommand=scrollbar.set)
                 scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
                 
-                # --- 3. ABRIR EL EXPLORADOR DE ARCHIVOS ---
-                ruta_archivo = filedialog.asksaveasfilename(
-                    defaultextension=".txt",
-                    filetypes=[("Archivos de texto", "*.txt"), ("Todos los archivos", "*.*")],
-                    title="Guardar como archivo de texto"
-                )
+                # Guardamos el objeto en la variable temporal y habilitamos el botón de guardado
+                self.afd_temp_para_guardar = afd_generado
+                btn_guardar.config(state=tk.NORMAL)
                 
-                if ruta_archivo:
-                    # Aquí enviaremos la orden de escritura al backend en el próximo paso
-                    # afd_generado.guardar_en_archivo(ruta_archivo, id_afd)
-                    
-                    messagebox.showinfo("Simulación de Guardado", f"El explorador funcionó.\nRuta seleccionada:\n{ruta_archivo}\n\nNota: Falta integrar el método de escritura en el backend.")
-                else:
-                    messagebox.showwarning("Cancelado", "La conversión se realizó en memoria, pero no se guardó el archivo.")
-                    
             except Exception as e:
                 messagebox.showerror("Error", str(e))
 
-        # Botón actualizado
-        tk.Button(self.main_frame, text="Convertir y guardar", command=accion_convertir_y_guardar, width=20).grid(row=2, column=0, columnspan=4, pady=10)    
+        def accion_guardar():
+            if not self.afd_temp_para_guardar:
+                return
+                
+            ruta_archivo = filedialog.asksaveasfilename(
+                defaultextension=".txt",
+                filetypes=[("Archivos de texto", "*.txt"), ("Todos los archivos", "*.*")],
+                title="Guardar como archivo de texto"
+            )
+            
+            if ruta_archivo:
+                try:
+                    # Llama al método que agregamos en el backend de AnzLex_Completo.py
+                    self.afd_temp_para_guardar.guardarArchivo(ruta_archivo, self.id_afd_temp)
+                    messagebox.showinfo("Éxito", f"El AFD se guardó correctamente en:\n{ruta_archivo}")
+                except Exception as e:
+                    messagebox.showerror("Error de guardado", f"No se pudo guardar:\n{e}")
+
+        # Configuración final de los botones (Botón 1 y el Botón 2 que ya fue creado arriba)
+        btn_convertir = tk.Button(frame_botones, text="Convertir a AFD", command=accion_convertir, width=15)
+        btn_convertir.pack(side=tk.LEFT, padx=10)
+        
+        btn_guardar.config(command=accion_guardar)
+        btn_guardar.pack(side=tk.LEFT, padx=10)
+    
     def mostrar_vista_union_lexico(self):
         self.limpiar_frame()
         
