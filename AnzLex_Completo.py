@@ -80,8 +80,8 @@ class AFD:
             print(f"Error al guardar el AFD en el archivo: {e}")
             raise Exception(f"No se pudo guardar el archivo: {e}")
 
-
-class Sj:
+#auxiliar para subconjuntos
+class Sj:  
     def __init__(self):
         self.Id = -1
         self.Edos = set()
