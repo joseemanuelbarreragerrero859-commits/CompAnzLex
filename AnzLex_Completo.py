@@ -1,13 +1,7 @@
-# ==============================================================
-#  AFNLexProba.py  —  Ejemplo 3 COMPLETO y CORREGIDO
-# ==============================================================
 from collections import deque
+EPSILON = 'EPSILON'
 
-EPSILON = 'ε'
-
-# --------------------------------------------------------------
-#  Clases base: Estado y Transicion
-# --------------------------------------------------------------
+#Clases base: Estado y Transicion
 class Estado:
     ContEdos = 0
 
@@ -17,6 +11,10 @@ class Estado:
         self.EdoAcept = False
         self.Token = -1
         self.Transiciones = set()
+
+def reiniciar_contador_estados():
+    """Reinicia el contador estático de estados a 0."""
+    Estado.ContEdos = 0
 
 
 class Transicion:
@@ -31,9 +29,7 @@ class Transicion:
             self.EdoDest = args[2]
 
 
-# --------------------------------------------------------------
 #  Clases auxiliares del AFD
-# --------------------------------------------------------------
 class EdoAFD:
     def __init__(self):
         self.TransEdo = [-1] * 257
@@ -59,32 +55,22 @@ class AFD:
         """
         try:
             with open(ruta_archivo, 'w', encoding='utf-8') as f:
-                # Escribimos un encabezador y metadatos
                 f.write(f"ID_AFD:{id_afd if id_afd else 'Sin_ID'}\n")
                 f.write(f"NUM_EDOS:{self.NumEdos}\n")
                 
-                # El alfabeto debe estar ordenado
                 alfabeto_ordenado = sorted(list(self.Alfabeto))
                 f.write(f"ALFABETO:{','.join(alfabeto_ordenado)}\n")
-                
-                # Encabezado para la sección de transiciones
                 f.write("TRANSICIONES\n")
                 
-                # Recorremos cada estado del AFD
                 for edo in self.EdosAFD:
                     fila = [str(edo.IdAFD)]
-                    
-                    # Guardamos el estado de destino para cada símbolo del alfabeto
                     for sim in alfabeto_ordenado:
                         idx = ord(sim)
                         dest = edo.TransEdo[idx]
-                        fila.append(str(dest)) # Será -1 si no hay transición
+                        fila.append(str(dest))
                     
-                    # El token siempre va en la posición 256
                     token = edo.TransEdo[256]
                     fila.append(str(token))
-                    
-                    # Escribimos la fila separando los datos con tabulaciones
                     f.write('\t'.join(fila) + '\n')
                     
             print(f"El AFD se ha guardado correctamente en: {ruta_archivo}")
@@ -101,9 +87,8 @@ class Sj:
         self.Edos = set()
 
 
-# --------------------------------------------------------------
-#  Clase AFN (con conversión a AFD)
-# --------------------------------------------------------------
+#Clase AFN (incluye conversión a AFD)
+
 class AFN:
     def __init__(self):
         self.Alfabeto = set()
@@ -220,7 +205,7 @@ class AFN:
         self.EdosAcept.add(e2)
         return self
 
-    # ---------------- Conversión AFN → AFD ----------------
+    # Conversión AFN → AFD
     def CerraduraEpsilon(self, c_edos):
         R = set()
         S = []
@@ -280,7 +265,6 @@ class AFN:
             EdojAFD = EdoAFD()
             EdojAFD.IdAFD = SjAux.Id
 
-            # Iteración determinista para que los IDs sean reproducibles
             for sim in sorted(self.Alfabeto):
                 SjTemp = Sj()
                 SjTemp.Edos = self.IrA(SjAux.Edos, sim)
@@ -336,11 +320,44 @@ class AFN:
                       f"tokens candidatos: {[e.Token for e in EdoAceptAFD]}")
 
         return ConvAFD
+    
+    def generar_diagrama(self, nombre_archivo="diagrama_afn"):
+        """
+        Recorre el AFN actual y genera su diagrama de estados utilizando Graphviz.
+        Genera un archivo PNG y lo abre automáticamente en el visor del sistema.
+        """
+        try:
+            from graphviz import Digraph
+            
+            dot = Digraph(name=nombre_archivo, format="png")
+            dot.attr(rankdir='LR')
+            
+            dot.node('start', shape='point')
+            if self.EdoIni:
+                dot.edge('start', str(self.EdoIni.IdEdo))
+                
+            for edo in self.EdosAFN:
+                forma = 'doublecircle' if edo in self.EdosAcept else 'circle'
+                dot.node(str(edo.IdEdo), label=f"q{edo.IdEdo}", shape=forma)
+                
+                for t in edo.Transiciones:
+                    if t.SimbInf == t.SimbSup:
+                        etiqueta = "EPSILON" if t.SimbInf == EPSILON else str(t.SimbInf)
+                    else:
+                        etiqueta = f"[{t.SimbInf}-{t.SimbSup}]"
+                        
+                    dot.edge(str(edo.IdEdo), str(t.EdoDest.IdEdo), label=etiqueta)
+                    
+            dot.render(nombre_archivo, view=True, cleanup=True)
+            return True
+            
+        except ImportError:
+            raise Exception("El módulo 'graphviz' no está instalado en Python.")
+        except Exception as e:
+            raise Exception(f"Error al generar el diagrama: {e}")
 
 
-# --------------------------------------------------------------
-#  Analizador léxico
-# --------------------------------------------------------------
+# analizador léxico
 class AnalizadorLexico:
     def __init__(self, afd_lexico=None, cadena_sigma=""):
         self.yytext = ""
@@ -371,7 +388,7 @@ class AnalizadorLexico:
             caracter = self.sigma[self.IndCaracActual]
             idx = ord(caracter)
 
-            if idx >= 257:          # protección contra caracteres fuera de rango
+            if idx >= 257:
                 break
 
             EdoActual = self.AFD_Lexico.EdosAFD[EdoActual].TransEdo[idx]
@@ -398,195 +415,33 @@ class AnalizadorLexico:
 
 
 # ==============================================================
-#  EJEMPLO 3 — Analizador léxico completo
+#  PRUEBAS INDEPENDIENTES
 # ==============================================================
-
-# Reinicio para reproducibilidad
-Estado.ContEdos = 0
-
-# ---- 1. Patrones léxicos ----
-afn_letras = AFN().CrearBasico('a', 'z').cerraduraPos()
-for edo in afn_letras.EdosAcept:
-    edo.Token = 10
-
-afn_numeros = AFN().CrearBasico('0', '9').cerraduraPos()
-for edo in afn_numeros.EdosAcept:
-    edo.Token = 20
-
-# ---- 2. Unión léxica (mega-AFN con nuevo estado inicial ε) ----
-afn_lexico = AFN()
-estado_inicial_global = Estado()
-
-estado_inicial_global.Transiciones.add(Transicion(EPSILON, afn_letras.EdoIni))
-estado_inicial_global.Transiciones.add(Transicion(EPSILON, afn_numeros.EdoIni))
-
-afn_lexico.EdoIni = estado_inicial_global
-afn_lexico.EdosAFN.add(estado_inicial_global)
-afn_lexico.EdosAFN.update(afn_letras.EdosAFN)
-afn_lexico.EdosAFN.update(afn_numeros.EdosAFN)
-afn_lexico.EdosAcept.update(afn_letras.EdosAcept)
-afn_lexico.EdosAcept.update(afn_numeros.EdosAcept)
-afn_lexico.Alfabeto.update(afn_letras.Alfabeto)
-afn_lexico.Alfabeto.update(afn_numeros.Alfabeto)
-
-# ---- 3. Conversión a AFD ----
-afd_final = afn_lexico.Convertir_a_AFD()
-
-if afd_final is None:
-    raise RuntimeError("Convertir_a_AFD() devolvió None")
-
-print(f"=== AFD construido: {afd_final.NumEdos} estados ===")
-print()
-
-# ---- 4. Análisis léxico sobre varias cadenas ----
-TOKEN_NOMBRES = {10: "IDENTIFICADOR", 20: "NUMERO"}
-
-
-def analizar(cadena):
-    lexer = AnalizadorLexico(afd_final, cadena)
-    print(f"Analizando: '{cadena}'")
-    print("-" * 55)
-
-    token = lexer.yylex()
-    while token != 0:
-        if token == -1:
-            print(f"  [ERROR] Carácter inválido: '{lexer.yytext}'")
-        else:
-            nombre = TOKEN_NOMBRES.get(token, f"DESCONOCIDO({token})")
-            print(f"  [TOKEN {token:>2}] {nombre:<13}: '{lexer.yytext}'")
-        token = lexer.yylex()
-
-    print("  [EOF]")
-    print()
-
-
-# ---- 5. Casos de prueba ----
-analizar("hola123mundo")
-analizar("abc")
-analizar("123")
-analizar("a1b2c3")
-analizar("123abc456")
-analizar("hola@mundo")
-analizar("@abc")
-analizar("abc@")
-analizar("")
-
-
-#Ej. 1: Imprimimos un afn de prueba para verficar el funcionamiento.
-def imprimir_afn(afn, nombre):
-    print(f"\n================ {nombre} ================")
-    print(f"Estado Inicial: q{afn.EdoIni.IdEdo}")
-    print(f"Alfabeto: {sorted(list(afn.Alfabeto))}")
-    
-    estados_aceptacion = [f"q{e.IdEdo}" for e in afn.EdosAcept]
-    print(f"Estados de Aceptación: {estados_aceptacion}")
-    
-    print("\nTransiciones:")
-    # Ordenamos los estados por ID para imprimir de forma clara
-    for estado in sorted(afn.EdosAFN, key=lambda e: e.IdEdo):
-        aceptacion_tag = " (ACEPTACIÓN)" if estado.EdoAcept else ""
-        print(f"  Estado q{estado.IdEdo}{aceptacion_tag}:")
-        if not estado.Transiciones:
-            print("    (Sin transiciones)")
-        for t in estado.Transiciones:
-            if t.SimbInf == t.SimbSup:
-                simbolo = t.SimbInf
-            else:
-                simbolo = f"[{t.SimbInf}-{t.SimbSup}]"
-            print(f"    --({simbolo})--> q{t.EdoDest.IdEdo}")
-
-# --- PRUEBA DE USO ---
-
-# 1. Crear AFN básico para el carácter 'a'
-afn_a = AFN().CrearBasico('a')
-
-# 2. Crear AFN básico para el rango de dígitos '0' a '2'
-afn_num = AFN().CrearBasico('0', '2')
-
-# 3. Aplicar unión: ('a' | ['0'-'2'])
-afn_union = afn_a.UnirAFN(afn_num)
-
-# 4. Aplicar Cerradura de Kleene: ('a' | ['0'-'2'])*
-afn_final = afn_union.cerraduraKleen()
-
-# Imprimir el AFN resultante
-imprimir_afn(afn_final, "AFN Final: ('a' | ['0'-'2'])*")
-
-
-
-# ----- Ej2: Prueba de la clase AFD y convesiones. -----
 if __name__ == "__main__":
-    # ---------------------------------------------------------------
-    # Ejemplo: construir AFN para  a (b|c)*
-    # ---------------------------------------------------------------
-    print("=== Construcción del AFN ===")
+    Estado.ContEdos = 0
 
-    # AFN para 'a'
-    afn_a = AFN().CrearBasico('a')
-    print(f"AFN 'a'  -> Estados: {len(afn_a.EdosAFN)}, Alfabeto: {afn_a.Alfabeto}")
+    afn_letras = AFN().CrearBasico('a', 'z').cerraduraPos()
+    for edo in afn_letras.EdosAcept:
+        edo.Token = 10
 
-    # AFN para 'b'
-    afn_b = AFN().CrearBasico('b')
+    afn_numeros = AFN().CrearBasico('0', '9').cerraduraPos()
+    for edo in afn_numeros.EdosAcept:
+        edo.Token = 20
 
-    # AFN para 'c'
-    afn_c = AFN().CrearBasico('c')
+    afn_lexico = AFN()
+    estado_inicial_global = Estado()
 
-    # Unión: (b|c)
-    afn_bc = afn_b.UnirAFN(afn_c)
-    print(f"AFN 'b|c' -> Estados: {len(afn_bc.EdosAFN)}, Alfabeto: {afn_bc.Alfabeto}")
+    estado_inicial_global.Transiciones.add(Transicion(EPSILON, afn_letras.EdoIni))
+    estado_inicial_global.Transiciones.add(Transicion(EPSILON, afn_numeros.EdoIni))
 
-    # Cerradura de Kleene: (b|c)*
-    afn_bc_estrella = afn_bc.cerraduraKleen()
-    print(f"AFN '(b|c)*' -> Estados: {len(afn_bc_estrella.EdosAFN)}, Alfabeto: {afn_bc_estrella.Alfabeto}")
+    afn_lexico.EdoIni = estado_inicial_global
+    afn_lexico.EdosAFN.add(estado_inicial_global)
+    afn_lexico.EdosAFN.update(afn_letras.EdosAFN)
+    afn_lexico.EdosAFN.update(afn_numeros.EdosAFN)
+    afn_lexico.EdosAcept.update(afn_letras.EdosAcept)
+    afn_lexico.EdosAcept.update(afn_numeros.EdosAcept)
+    afn_lexico.Alfabeto.update(afn_letras.Alfabeto)
+    afn_lexico.Alfabeto.update(afn_numeros.Alfabeto)
 
-    # Concatenación: a(b|c)*
-    afn_final = afn_a.Concatenar(afn_bc_estrella)
-    print(f"AFN final 'a(b|c)*' -> Estados: {len(afn_final.EdosAFN)}, Alfabeto: {afn_final.Alfabeto}")
-
-    # ---------------------------------------------------------------
-    # Marcar token de aceptación (para que se propague al AFD)
-    # ---------------------------------------------------------------
-    for edo in afn_final.EdosAcept:
-        edo.Token = 42   # token arbitrario de ejemplo
-
-    # ---------------------------------------------------------------
-    # Conversión AFN -> AFD
-    # ---------------------------------------------------------------
-    print("\n=== Conversión AFN -> AFD ===")
-    afd = afn_final.Convertir_a_AFD()
-
-    print(f"AFD -> Número de estados: {afd.NumEdos}")
-    print(f"AFD -> Alfabeto: {sorted(afd.Alfabeto)}")
-
-    print("\n=== Tabla de transiciones del AFD ===")
-    for edo in afd.EdosAFD:
-        print(f"\nEstado AFD {edo.IdAFD}  (Aceptación: {edo.EdoAcept})")
-        if edo.EdoAcept:
-            print(f"  Token: {edo.TransEdo[256]}")
-        for sim, dest in sorted(edo.Transiciones.items()):
-            print(f"  --{sim}--> {dest}")
-
-    # ---------------------------------------------------------------
-    # Simulación manual de cadenas sobre el AFD
-    # ---------------------------------------------------------------
-    def simular(afd, cadena):
-        #Recorre el AFD con la cadena. Devuelve (aceptada, token).
-        edo_actual = afd.EdosAFD[0]  # El estado inicial es el IdAFD 0
-        for c in cadena:
-            idx = ord(c)
-            if idx >= len(edo_actual.TransEdo):
-                return False, -1
-            sig = edo_actual.TransEdo[idx]
-            if sig == -1:
-                return False, -1
-            edo_actual = afd.EdosAFD[sig]
-        if edo_actual.EdoAcept:
-            return True, edo_actual.TransEdo[256]
-        return False, -1
-
-    print("\n=== Simulación de cadenas ===")
-    pruebas = ["a", "ab", "ac", "abc", "abcbcc", "b", "abb", ""]
-    for cadena in pruebas:
-        aceptada, token = simular(afd, cadena)
-        etiqueta = f"'{cadena}'" if cadena else "(cadena vacía)"
-        print(f"  {etiqueta:15} -> Aceptada: {aceptada}   Token: {token}")
+    afd_final = afn_lexico.Convertir_a_AFD()
+    print(f"=== AFD construido: {afd_final.NumEdos} estados ===")

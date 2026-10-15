@@ -1,12 +1,9 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from tkinter import filedialog
+from AnzLex_Completo import AFN, Estado, EPSILON, reiniciar_contador_estados
 
-# IMPORTACIÓN DE TU BACKEND LÓGICO
-# Asegúrate de que AnzLex_Completo.py está en el mismo directorio
-from AnzLex_Completo import AFN 
-
-# Contenedor global que ahora guardará las INSTANCIAS REALES de los AFNs
+#contenedor global
 afns_en_memoria = {}
 contador_afn = 1
 
@@ -35,7 +32,8 @@ class InterfazCompilador:
         menu_thompson.add_separator()
         menu_thompson.add_command(label="Unión para analizador léxico", command=self.mostrar_vista_union_lexico)
         menu_thompson.add_command(label="Convertir AFN a AFD", command=self.mostrar_vista_convertir_afd)
-        
+        menu_thompson.add_separator()
+        menu_thompson.add_command(label="Ver AFN", command=self.mostrar_vista_ver_afn)
         menubar.add_cascade(label="AFN's", menu=menu_thompson)
         self.root.config(menu=menubar)
 
@@ -43,9 +41,7 @@ class InterfazCompilador:
         for widget in self.main_frame.winfo_children():
             widget.destroy()
 
-    # ==========================================
-    # VISTAS CON CONEXIÓN AL BACKEND
-    # ==========================================
+    #VISTAS
 
     def mostrar_vista_crear_basico(self):
         self.limpiar_frame()
@@ -75,9 +71,11 @@ class InterfazCompilador:
             if not id_afn:
                 id_afn = f"AFN_{contador_afn}"
                 contador_afn += 1
+
+            if not afns_en_memoria:
+                reiniciar_contador_estados()
                 
             try:
-                # --- LLAMADA AL BACKEND ---
                 nuevo_afn = AFN().CrearBasico(s1, s2)
                 afns_en_memoria[id_afn] = nuevo_afn
                 
@@ -124,13 +122,11 @@ class InterfazCompilador:
             afn2 = afns_en_memoria[id2]
             
             try:
-                # --- LLAMADAS AL BACKEND ---
                 if operacion == "unir":
                     afn_resultante = afn1.UnirAFN(afn2)
                 elif operacion == "concatenar":
                     afn_resultante = afn1.Concatenar(afn2)
                 
-                # Para simplificar la memoria, sobrescribimos el AFN 1 con el resultado
                 afns_en_memoria[id1] = afn_resultante
                 
                 messagebox.showinfo("Éxito", f"Operación exitosa.\nEstados totales: {len(afn_resultante.EdosAFN)}\nAlfabeto: {sorted(list(afn_resultante.Alfabeto))}")
@@ -167,7 +163,6 @@ class InterfazCompilador:
             afn = afns_en_memoria[id_sel]
             
             try:
-                # --- LLAMADAS AL BACKEND ---
                 if operacion == "pos":
                     afn_resultante = afn.cerraduraPos()
                 elif operacion == "kleen":
@@ -181,38 +176,32 @@ class InterfazCompilador:
                 messagebox.showerror("Error", str(e))
 
         tk.Button(self.main_frame, text="APLICAR", command=accion_aplicar, width=15).grid(row=3, column=0, columnspan=2, pady=20)
+
     def mostrar_vista_convertir_afd(self):
         self.limpiar_frame()
         tk.Label(self.main_frame, text="CONVERTIR AFN A AFD", font=("Arial", 12, "bold")).grid(row=0, column=0, columnspan=4, pady=(0, 10), sticky="w")
         
         opciones_afn = list(afns_en_memoria.keys())
         
-        # Campo 1: Seleccionar el AFN origen
         tk.Label(self.main_frame, text="AFN a convertir a AFD:").grid(row=1, column=0, pady=10, sticky="e")
         combo_afn = ttk.Combobox(self.main_frame, values=opciones_afn, state="readonly", width=15)
         combo_afn.grid(row=1, column=1, padx=10, pady=10)
         
-        # Campo 2: Id del AFD resultante 
         tk.Label(self.main_frame, text="Id del AFD:").grid(row=1, column=2, pady=10, sticky="e")
         entrada_id_afd = tk.Entry(self.main_frame, width=10)
         entrada_id_afd.grid(row=1, column=3, padx=10, pady=10)
         
-        # Frame para contener los botones
         frame_botones = tk.Frame(self.main_frame)
         frame_botones.grid(row=2, column=0, columnspan=4, pady=10)
 
-        # Botón 2: El de guardar, que iniciará desactivado hasta que haya un AFD generado
-        self.afd_temp_para_guardar = None # Variable auxiliar
+        self.afd_temp_para_guardar = None
         self.id_afd_temp = ""
         btn_guardar = tk.Button(frame_botones, text="Guardar en .txt", width=15, state=tk.DISABLED)
 
-        # Frame para la tabla
         frame_tabla = tk.Frame(self.main_frame)
         frame_tabla.grid(row=3, column=0, columnspan=4, pady=10)
 
-        # -- FUNCIONES DE LOS BOTONES --
         def accion_convertir():
-            # Limpiar tabla si existe
             for widget in frame_tabla.winfo_children():
                 widget.destroy()
                 
@@ -229,10 +218,8 @@ class InterfazCompilador:
             afn_obj = afns_en_memoria[id_sel]
             
             try:
-                # --- LÓGICA DE CONVERSIÓN ---
                 afd_generado = afn_obj.Convertir_a_AFD()
                 
-                # --- DIBUJAR LA TABLA ---
                 alfabeto_lista = sorted(list(afd_generado.Alfabeto))
                 columnas = ["Estado"] + alfabeto_lista + ["Token"]
                 
@@ -259,7 +246,6 @@ class InterfazCompilador:
                 tabla.configure(yscrollcommand=scrollbar.set)
                 scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
                 
-                # Guardamos el objeto en la variable temporal y habilitamos el botón de guardado
                 self.afd_temp_para_guardar = afd_generado
                 btn_guardar.config(state=tk.NORMAL)
                 
@@ -278,13 +264,11 @@ class InterfazCompilador:
             
             if ruta_archivo:
                 try:
-                    # Llama al método que agregamos en el backend de AnzLex_Completo.py
                     self.afd_temp_para_guardar.guardarArchivo(ruta_archivo, self.id_afd_temp)
                     messagebox.showinfo("Éxito", f"El AFD se guardó correctamente en:\n{ruta_archivo}")
                 except Exception as e:
                     messagebox.showerror("Error de guardado", f"No se pudo guardar:\n{e}")
 
-        # Configuración final de los botones (Botón 1 y el Botón 2 que ya fue creado arriba)
         btn_convertir = tk.Button(frame_botones, text="Convertir a AFD", command=accion_convertir, width=15)
         btn_convertir.pack(side=tk.LEFT, padx=10)
         
@@ -297,15 +281,12 @@ class InterfazCompilador:
         tk.Label(self.main_frame, text="UNIÓN PARA ANALIZADOR LÉXICO", font=("Arial", 12, "bold")).grid(row=0, column=0, columnspan=3, pady=(0, 10), sticky="w")
         tk.Label(self.main_frame, text="Selecciona los AFNs a Unir y asigna los tokens").grid(row=1, column=0, columnspan=3, sticky="w")
         
-        # Texto rojo conciso
         texto_rojo = "Nota: Usa el TOKEN 20001 para omitir lexemas sin valor sintáctico (ej. espacios o saltos de línea)."
         tk.Label(self.main_frame, text=texto_rojo, fg="red", font=("Arial", 9, "italic")).grid(row=2, column=0, columnspan=3, sticky="w", pady=(0, 10))
         
-        # Contenedor de la tabla
         frame_tabla = tk.Frame(self.main_frame, bd=1, relief="solid")
         frame_tabla.grid(row=3, column=0, columnspan=3, pady=10, sticky="w")
         
-        # Cabeceras exactas
         tk.Label(frame_tabla, text="AFN", font=("Arial", 10, "bold")).grid(row=0, column=0, padx=15, pady=5)
         tk.Label(frame_tabla, text="Selecciona AFN", font=("Arial", 10, "bold")).grid(row=0, column=1, padx=15, pady=5)
         tk.Label(frame_tabla, text="Token", font=("Arial", 10, "bold")).grid(row=0, column=2, padx=15, pady=5)
@@ -314,7 +295,6 @@ class InterfazCompilador:
         self.variables_tokens = {}
         opciones_afn = list(afns_en_memoria.keys())
         
-        # Rellenar la tabla dinámica
         for idx, afn_id in enumerate(opciones_afn):
             tk.Label(frame_tabla, text=afn_id).grid(row=idx+1, column=0, padx=15, pady=5)
             
@@ -326,7 +306,6 @@ class InterfazCompilador:
             tk.Entry(frame_tabla, textvariable=var_tok, width=12).grid(row=idx+1, column=2, padx=15, pady=5)
             self.variables_tokens[afn_id] = var_tok
 
-        # Campo final de ID
         tk.Label(self.main_frame, text="ID del AFN resultante").grid(row=4, column=0, pady=15, sticky="e")
         entrada_id_res = tk.Entry(self.main_frame, width=20)
         entrada_id_res.grid(row=4, column=1, sticky="w")
@@ -352,7 +331,6 @@ class InterfazCompilador:
                 return
                 
             try:
-                # Lógica del backend
                 from AnzLex_Completo import AFN, Estado, Transicion, EPSILON
                 
                 afn_lexico = AFN()
@@ -379,6 +357,31 @@ class InterfazCompilador:
                 messagebox.showerror("Error del Backend", str(e))
                 
         tk.Button(self.main_frame, text="Aplicar Unión", command=accion_union_lexica, width=15).grid(row=5, column=0, columnspan=2, pady=10)
+
+    def mostrar_vista_ver_afn(self):
+        self.limpiar_frame()
+        tk.Label(self.main_frame, text="VISUALIZAR AFN", font=("Arial", 12, "bold")).grid(row=0, column=0, columnspan=2, pady=(0, 20), sticky="w")
+
+        opciones_afn = list(afns_en_memoria.keys())
+        
+        tk.Label(self.main_frame, text="Seleccionar AFN:").grid(row=1, column=0, pady=10, sticky="e")
+        combo_afn = ttk.Combobox(self.main_frame, values=opciones_afn, state="readonly", width=15)
+        combo_afn.grid(row=1, column=1, padx=10, pady=10)
+
+        def accion_visualizar():
+            id_sel = combo_afn.get()
+            if not id_sel:
+                messagebox.showerror("Error", "Selecciona un AFN de la lista.")
+                return
+                
+            afn_obj = afns_en_memoria[id_sel]
+            
+            try:
+                afn_obj.generar_diagrama(nombre_archivo=f"Diagrama_{id_sel}")
+            except Exception as e:
+                messagebox.showerror("Error de Visualización", str(e))
+
+        tk.Button(self.main_frame, text="Generar y Ver Diagrama", command=accion_visualizar, width=20).grid(row=2, column=0, columnspan=2, pady=20)       
 
 if __name__ == "__main__":
     root = tk.Tk()
