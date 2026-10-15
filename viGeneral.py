@@ -1,17 +1,18 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from tkinter import filedialog
-from AnzLex_Completo import AFN, Estado, EPSILON, reiniciar_contador_estados
+from AnzLex_Completo import AFN, Estado, EPSILON, reiniciar_contador_estados, AnalizadorLexico
 
-#contenedor global
+# contenedores globales
 afns_en_memoria = {}
+afds_en_memoria = {}
 contador_afn = 1
 
 class InterfazCompilador:
     def __init__(self, root):
         self.root = root
         self.root.title("Analizador Léxico - Testbench Thompson")
-        self.root.geometry("600x500")
+        self.root.geometry("650x550")
 
         self.main_frame = tk.Frame(self.root)
         self.main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
@@ -33,6 +34,8 @@ class InterfazCompilador:
         menu_thompson.add_command(label="Unión para analizador léxico", command=self.mostrar_vista_union_lexico)
         menu_thompson.add_command(label="Convertir AFN a AFD", command=self.mostrar_vista_convertir_afd)
         menu_thompson.add_separator()
+        menu_thompson.add_command(label="Probar Analizador Léxico (σ)", command=self.mostrar_vista_probar_lexico)
+        menu_thompson.add_separator()
         menu_thompson.add_command(label="Ver AFN", command=self.mostrar_vista_ver_afn)
         menubar.add_cascade(label="AFN's", menu=menu_thompson)
         self.root.config(menu=menubar)
@@ -41,7 +44,7 @@ class InterfazCompilador:
         for widget in self.main_frame.winfo_children():
             widget.destroy()
 
-    #VISTAS
+    # VISTAS
 
     def mostrar_vista_crear_basico(self):
         self.limpiar_frame()
@@ -90,7 +93,6 @@ class InterfazCompilador:
 
         tk.Button(self.main_frame, text="CREAR", command=accion_crear, width=10).grid(row=4, column=0, columnspan=2, pady=20)
 
-
     def mostrar_vista_unir(self):
         self._vista_operacion_doble("UNIR AFN", "unir")
 
@@ -134,7 +136,6 @@ class InterfazCompilador:
                 messagebox.showerror("Error del Backend", str(e))
 
         tk.Button(self.main_frame, text="APLICAR", command=accion_aplicar, width=10).grid(row=4, column=0, columnspan=2, pady=20)
-
 
     def mostrar_vista_cerradura_pos(self):
         self._vista_operacion_simple("CERRADURA POSITIVA", "pos")
@@ -219,6 +220,9 @@ class InterfazCompilador:
             
             try:
                 afd_generado = afn_obj.Convertir_a_AFD()
+                
+                # Registrar AFD en memoria global para pruebas de la cadena sigma
+                afds_en_memoria[self.id_afd_temp] = afd_generado
                 
                 alfabeto_lista = sorted(list(afd_generado.Alfabeto))
                 columnas = ["Estado"] + alfabeto_lista + ["Token"]
@@ -358,6 +362,64 @@ class InterfazCompilador:
                 
         tk.Button(self.main_frame, text="Aplicar Unión", command=accion_union_lexica, width=15).grid(row=5, column=0, columnspan=2, pady=10)
 
+    def mostrar_vista_probar_lexico(self):
+        self.limpiar_frame()
+        tk.Label(self.main_frame, text="PROBAR ANALIZADOR LÉXICO (CADENA σ)", font=("Arial", 12, "bold")).grid(row=0, column=0, columnspan=3, pady=(0, 15), sticky="w")
+
+        opciones_afd = list(afds_en_memoria.keys())
+
+        tk.Label(self.main_frame, text="Seleccionar AFD:").grid(row=1, column=0, pady=5, sticky="e")
+        combo_afd = ttk.Combobox(self.main_frame, values=opciones_afd, state="readonly", width=15)
+        combo_afd.grid(row=1, column=1, padx=10, pady=5, sticky="w")
+
+        tk.Label(self.main_frame, text="Cadena σ:").grid(row=2, column=0, pady=5, sticky="e")
+        entrada_sigma = tk.Entry(self.main_frame, width=40)
+        entrada_sigma.grid(row=2, column=1, padx=10, pady=5, sticky="w")
+
+        frame_tabla = tk.Frame(self.main_frame)
+        frame_tabla.grid(row=3, column=0, columnspan=3, pady=15, sticky="nsew")
+
+        columnas = ("Lexema", "Token")
+        tabla = ttk.Treeview(frame_tabla, columns=columnas, show="headings", height=8)
+
+        tabla.heading("Lexema", text="Lexema")
+        tabla.heading("Token", text="Token")
+
+        tabla.column("Lexema", width=220, anchor="center")
+        tabla.column("Token", width=160, anchor="center")
+
+        tabla.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar = ttk.Scrollbar(frame_tabla, orient=tk.VERTICAL, command=tabla.yview)
+        tabla.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        def accion_analizar():
+            for item in tabla.get_children():
+                tabla.delete(item)
+
+            id_afd = combo_afd.get()
+            sigma = entrada_sigma.get()
+
+            if not id_afd:
+                messagebox.showerror("Error", "Selecciona un AFD generado.")
+                return
+
+            afd_obj = afds_en_memoria[id_afd]
+            analizador = AnalizadorLexico(afd_obj, sigma)
+
+            while True:
+                token = analizador.yylex()
+                if token == 0:
+                    tabla.insert("", "end", values=("", "0 (FIN DE CADENA)"))
+                    break
+                elif token == -1:
+                    # Se inserta la fila de error y NO se detiene el ciclo con break
+                    tabla.insert("", "end", values=(analizador.yytext, "-1 (ERROR LÉXICO)"))
+                else:
+                    tabla.insert("", "end", values=(analizador.yytext, str(token)))
+
+        tk.Button(self.main_frame, text="ANALIZAR CADENA", command=accion_analizar, width=18).grid(row=4, column=0, columnspan=2, pady=10)
+        
     def mostrar_vista_ver_afn(self):
         self.limpiar_frame()
         tk.Label(self.main_frame, text="VISUALIZAR AFN", font=("Arial", 12, "bold")).grid(row=0, column=0, columnspan=2, pady=(0, 20), sticky="w")
