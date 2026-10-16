@@ -197,10 +197,27 @@ class InterfazCompilador:
 
         self.afd_temp_para_guardar = None
         self.id_afd_temp = ""
-        btn_guardar = tk.Button(frame_botones, text="Guardar en .txt", width=15, state=tk.DISABLED)
 
         frame_tabla = tk.Frame(self.main_frame)
         frame_tabla.grid(row=3, column=0, columnspan=4, pady=10)
+
+        def accion_guardar():
+            if not self.afd_temp_para_guardar:
+                return
+                
+            ruta_archivo = filedialog.asksaveasfilename(
+                defaultextension=".txt",
+                filetypes=[("Archivos de texto", "*.txt"), ("Todos los archivos", "*.*")],
+                initialfile=f"{self.id_afd_temp}.txt" if self.id_afd_temp else "AFD.txt",
+                title="Guardar AFD como archivo de texto"
+            )
+            
+            if ruta_archivo:
+                try:
+                    self.afd_temp_para_guardar.guardarArchivo(ruta_archivo, self.id_afd_temp)
+                    messagebox.showinfo("Éxito", f"El AFD se guardó correctamente en:\n{ruta_archivo}")
+                except Exception as e:
+                    messagebox.showerror("Error de guardado", f"No se pudo guardar:\n{e}")
 
         def accion_convertir():
             for widget in frame_tabla.winfo_children():
@@ -221,9 +238,10 @@ class InterfazCompilador:
             try:
                 afd_generado = afn_obj.Convertir_a_AFD()
                 
-                # Registrar AFD en memoria global para pruebas de la cadena sigma
+                # Registrar el AFD en la memoria global para pruebas con cadena sigma
                 afds_en_memoria[self.id_afd_temp] = afd_generado
                 
+                # Renderizado de la matriz de transiciones en pantalla
                 alfabeto_lista = sorted(list(afd_generado.Alfabeto))
                 columnas = ["Estado"] + alfabeto_lista + ["Token"]
                 
@@ -251,34 +269,17 @@ class InterfazCompilador:
                 scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
                 
                 self.afd_temp_para_guardar = afd_generado
-                btn_guardar.config(state=tk.NORMAL)
+                
+                # Solicitar exportación inmediata a .txt tras la conversión
+                accion_guardar()
                 
             except Exception as e:
                 messagebox.showerror("Error", str(e))
 
-        def accion_guardar():
-            if not self.afd_temp_para_guardar:
-                return
-                
-            ruta_archivo = filedialog.asksaveasfilename(
-                defaultextension=".txt",
-                filetypes=[("Archivos de texto", "*.txt"), ("Todos los archivos", "*.*")],
-                title="Guardar como archivo de texto"
-            )
-            
-            if ruta_archivo:
-                try:
-                    self.afd_temp_para_guardar.guardarArchivo(ruta_archivo, self.id_afd_temp)
-                    messagebox.showinfo("Éxito", f"El AFD se guardó correctamente en:\n{ruta_archivo}")
-                except Exception as e:
-                    messagebox.showerror("Error de guardado", f"No se pudo guardar:\n{e}")
-
-        btn_convertir = tk.Button(frame_botones, text="Convertir a AFD", command=accion_convertir, width=15)
+        btn_convertir = tk.Button(frame_botones, text="Convertir y Guardar", command=accion_convertir, width=18)
         btn_convertir.pack(side=tk.LEFT, padx=10)
         
-        btn_guardar.config(command=accion_guardar)
-        btn_guardar.pack(side=tk.LEFT, padx=10)
-    
+            
     def mostrar_vista_union_lexico(self):
         self.limpiar_frame()
         
